@@ -40,11 +40,26 @@
 }
 
 - (void)authorize:(AuthorizationHandler)completion {
-  [self authorizeWithTitle:[self defaultTitle:@"Photos"]
-                   message:[self defaultMessage]
-               cancelTitle:[self defaultCancelTitle]
-                grantTitle:[self defaultGrantTitle]
-                completion:completion];
+    
+    ALAuthorizationStatus status = [ALAssetsLibrary authorizationStatus];
+    switch (status) {
+        case ALAuthorizationStatusAuthorized:
+            if (completion) {
+                completion(true, nil);
+            }
+            break;
+        case ALAuthorizationStatusNotDetermined: {
+            _completion = completion;
+            [self actuallyAuthorize];
+        } break;
+        case ALAuthorizationStatusRestricted:
+        case ALAuthorizationStatusDenied: {
+            if (completion) {
+                completion(false, [self previouslyDeniedError]);
+            }
+        } break;
+    }
+    
 }
 
 - (void)authorizeWithTitle:(NSString *)messageTitle

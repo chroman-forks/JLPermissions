@@ -60,11 +60,40 @@
 }
 
 - (void)authorize:(AuthorizationHandler)completion {
-  [self authorizeWithTitle:[self defaultTitle:@"Microphone"]
-                   message:[self defaultMessage]
-               cancelTitle:[self defaultCancelTitle]
-                grantTitle:[self defaultGrantTitle]
-                completion:completion];
+    AVAudioSession *audioSession = [AVAudioSession sharedInstance];
+    if ([audioSession respondsToSelector:@selector(recordPermission)]) {
+        AVAudioSessionRecordPermission permission = [audioSession recordPermission];
+        switch (permission) {
+            case AVAudioSessionRecordPermissionGranted: {
+                if (completion) {
+                    completion(true, nil);
+                }
+            } break;
+            case AVAudioSessionRecordPermissionDenied: {
+                if (completion) {
+                    completion(false, [self previouslyDeniedError]);
+                }
+            } break;
+            case AVAudioSessionRecordPermissionUndetermined: {
+                _completion = completion;
+                [self actuallyAuthorize];
+            } break;
+        }
+    } else {
+        [audioSession requestRecordPermission:^(BOOL granted) {
+            [[NSUserDefaults standardUserDefaults] setBool:true forKey:kJLAskedForMicrophonePermission];
+            [[NSUserDefaults standardUserDefaults] synchronize];
+            if (completion) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (granted) {
+                        completion(granted, nil);
+                    } else {
+                        completion(false, nil);
+                    }
+                });
+            }
+        }];
+    }
 }
 
 - (void)authorizeWithTitle:(NSString *)messageTitle
